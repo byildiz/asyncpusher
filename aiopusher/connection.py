@@ -102,6 +102,7 @@ class Connection:
                 elif msg.type == aiohttp.WSMsgType.CLOSED:
                     pass
                 self._state = self.State.CLOSED
+                self._log.info(f"Exiting dispatch with last message: {msg}")
                 break
 
     async def _handle_event(self, event):
