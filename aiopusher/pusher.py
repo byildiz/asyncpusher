@@ -73,6 +73,14 @@ class Pusher:
         if channel_name in self.channels:
             return self.channels[channel_name]
 
+        await self._subscribe(channel_name, auth)
+
+        channel = Channel(channel_name, auth, self.connection, self._log)
+        self.channels[channel_name] = channel
+
+        return channel
+
+    async def _subscribe(self, channel_name, auth=None):
         data = {"channel": channel_name}
         if auth is None:
             if channel_name.startswith("presence-"):
@@ -88,11 +96,6 @@ class Pusher:
         event = {"event": "pusher:subscribe", "data": data}
         await self.connection.send_event(event)
 
-        channel = Channel(channel_name, auth, self.connection, self._log)
-        self.channels[channel_name] = channel
-
-        return channel
-
     async def unsubscribe(self, channel_name):
         if channel_name in self.channels:
             data = {"channel": channel_name}
@@ -102,11 +105,10 @@ class Pusher:
             del self.channels[channel_name]
 
     async def _resubscribe(self, _):
-        self._log.info("Resubscribing channels...")
-        channels = [(c.name, c.auth) for c in self.channels.values()]
-        self.channels = {}
-        for name, auth in channels:
-            await self.subscribe(name, auth)
+        if len(self.channels) > 0:
+            self._log.info("Resubscribing channels...")
+            for channel in self.channels.values():
+                await self._subscribe(channel.name, channel.auth)
 
     async def _generate_auth_token(self, channel_name: str, is_presence=False):
         assert (

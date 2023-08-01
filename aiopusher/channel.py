@@ -1,10 +1,16 @@
 from collections import defaultdict
 import logging
+from enum import Enum
 
 from .connection import Connection
 
 
 class Channel:
+    class State(Enum):
+        UNSUBSCRIBED = 1
+        SUBSCRIBED = 2
+        FAILED = 3
+
     def __init__(
         self,
         channel_name,
@@ -18,6 +24,9 @@ class Channel:
         self._log = log
 
         self._event_callbacks = defaultdict(dict)
+        self.state = self.State.UNSUBSCRIBED
+
+        self.bind("pusher_internal:subscription_succeeded", self._handle_success)
 
     def bind(self, event_name, callback, *args, **kwargs):
         self._event_callbacks[event_name][callback] = (args, kwargs)
@@ -52,3 +61,6 @@ class Channel:
 
     def is_presence(self):
         return self.name.startswith("presence-")
+
+    async def _handle_success(self, _):
+        self.state = self.State.SUBSCRIBED
