@@ -1,9 +1,7 @@
 import logging
 import asyncio
 import json
-import time
 import aiohttp
-from contextlib import suppress
 from random import random
 from collections import defaultdict
 from collections.abc import Callable, Awaitable
