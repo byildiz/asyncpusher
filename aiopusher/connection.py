@@ -107,7 +107,7 @@ class Connection:
 
     async def _handle_event(self, event):
         if "event" not in event:
-            self._log.info(f"Unexpected event: {event}")
+            self._log.warning(f"Unexpected event: {event}")
             return
 
         event_name = event["event"]
@@ -125,7 +125,7 @@ class Connection:
                     self._log.exception(f"Exception in callback: {event_data}")
             return
 
-        self._log.info(f"Unhandled event: {event}")
+        self._log.warning(f"Unhandled event: {event}")
 
     async def _send_pong(self):
         await self.send_event({"event": "pusher:pong", "data": ""})

@@ -102,6 +102,7 @@ class Pusher:
             del self.channels[channel_name]
 
     async def _resubscribe(self, _):
+        self._log.info("Resubscribing channels...")
         channels = [(c.name, c.auth) for c in self.channels.values()]
         self.channels = {}
         for name, auth in channels:
