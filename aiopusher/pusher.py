@@ -102,7 +102,7 @@ class Pusher:
             del self.channels[channel_name]
 
     async def _resubscribe(self, _):
-        channels = [(c.name, c.auth) for c in self.channels.items()]
+        channels = [(c.name, c.auth) for c in self.channels.values()]
         self.channels = {}
         for name, auth in channels:
             await self.subscribe(name, auth)
