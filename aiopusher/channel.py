@@ -36,7 +36,9 @@ class Channel:
 
     async def handle_event(self, event_name, data):
         if event_name not in self._event_callbacks:
-            self._log.warning(f"Unhandled event: {self.name}, {event_name}, {data}")
+            self._log.warning(
+                f"Unhandled event, channel: {self.name}, event: {event_name}, data: {data}"
+            )
             return
 
         for callback, (args, kwargs) in self._event_callbacks[event_name].items():

@@ -64,7 +64,7 @@ class Pusher:
     async def _handle_event(self, channel_name, event_name, data):
         if channel_name not in self.channels:
             self._log.warning(
-                f"Unexpected event {event_name} for channel {channel_name}"
+                f"Unsubscribed event, channel: {self.name}, event: {event_name}, data: {data}"
             )
             return
         await self.channels[channel_name].handle_event(event_name, data)
