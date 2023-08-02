@@ -10,6 +10,10 @@ from enum import Enum
 
 
 class Connection:
+    """
+    Implements pusher protocol 7 described in https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/
+    """
+
     class State(Enum):
         IDLE = 1
         CONNECTED = 2
@@ -44,9 +48,6 @@ class Connection:
 
         self.bind("pusher:connection_established", self._handle_connection)
         self.bind("pusher:connection_failed", self._handle_failure)
-        self.bind("pusher:pong", self._handle_pong)
-        self.bind("pusher:ping", self._handle_ping)
-        self.bind("pusher:error", self._handle_error)
 
     async def open(self):
         self._loop.create_task(self._run_forever())
@@ -91,6 +92,10 @@ class Connection:
                 await self._handle_event(event)
             else:
                 if msg.type == aiohttp.WSMsgType.CLOSE:
+                    # TODO: handle msg like WSMessage(type=<WSMsgType.CLOSE: 8>, data=4200, extra='Please reconnect immediately')
+                    # 4000-4099: The connection SHOULD NOT be re-established unchanged.
+                    # 4100-4199: The connection SHOULD be re-established after backing off. The back-off time SHOULD be at least 1 second in duration and MAY be exponential in nature on consecutive failures.
+                    # 4200-4299: The connection SHOULD be re-established immediately.
                     await ws.close()
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     self._log.error(f"Error received {ws.exception()}")
@@ -120,9 +125,6 @@ class Connection:
 
         self._log.warning(f"Unhandled event: {event}")
 
-    async def _send_pong(self):
-        await self.send_event({"event": "pusher:pong", "data": ""})
-
     async def send_event(self, event):
         retry_count = 5
         while retry_count > 0 and self.state != self.State.CONNECTED:
@@ -141,18 +143,6 @@ class Connection:
     async def _handle_failure(self, data):
         self.state = self.State.FAILED
         self._log.error(f"Connection failed: {data}")
-
-    async def _handle_pong(self, data):
-        # TODO: reset inactivity timer
-        self._log.info(f"Pong received: {data}")
-
-    async def _handle_ping(self, data):
-        await self._send_pong()
-        self._log.info(f"Ping received: {data}")
-
-    async def _handle_error(self, data):
-        self.state = self.State.CLOSED
-        self._log.error(f"Connection error: {data}")
 
     def bind(self, event_name, callback, *args, **kwargs):
         self._event_callbacks[event_name][callback] = (args, kwargs)
