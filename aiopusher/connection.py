@@ -9,10 +9,6 @@ from typing import Any
 from enum import Enum
 
 
-MAX_RECONNECTS = 5
-MAX_RECONNECT_SECONDS = 60
-
-
 class Connection:
     class State(Enum):
         IDLE = 1
@@ -22,7 +18,7 @@ class Connection:
 
     def __init__(
         self,
-        loop: asyncio.BaseEventLoop,
+        loop: asyncio.AbstractEventLoop,
         url: str,
         callback: Callable[[str, Any, str], Awaitable[None]],
         log: logging.Logger,
@@ -41,8 +37,9 @@ class Connection:
         self._stop = False
         self._ws: aiohttp.ClientWebSocketResponse = None
         self.socket_id = None
-        # default activity timeout  is 120s
+        # https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/#recommendations-for-client-libraries
         self._activity_timeout = 120
+        self._pong_timeout = 30
         self.state = self.State.IDLE
 
         self.bind("pusher:connection_established", self._handle_connection)
@@ -77,7 +74,11 @@ class Connection:
         await asyncio.sleep(wait_seconds)
         self._log.info("End of wait")
 
-        async with session.ws_connect(self._url, **self._websocket_params) as ws:
+        async with session.ws_connect(
+            self._url, heartbeat=self._activity_timeout, **self._websocket_params
+        ) as ws:
+            # internally ws uses heartbeat/2 as pong timeout but pusher protocol advise 30s
+            ws._pong_heartbeat = self._pong_timeout
             self._ws = ws
             await self._dispatch(ws)
 
@@ -88,21 +89,13 @@ class Connection:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 event = json.loads(msg.data)
                 await self._handle_event(event)
-            elif msg.type == aiohttp.WSMsgType.BINARY:
-                self._log.warning(f"Unexpected binary message: {msg.data}")
-            elif msg.type == aiohttp.WSMsgType.PING:
-                await ws.pong()
-            elif msg.type == aiohttp.WSMsgType.PONG:
-                self._log.warning("Pong received")
             else:
                 if msg.type == aiohttp.WSMsgType.CLOSE:
                     await ws.close()
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     self._log.error(f"Error received {ws.exception()}")
-                elif msg.type == aiohttp.WSMsgType.CLOSED:
-                    pass
                 self._state = self.State.CLOSED
-                self._log.info(f"Exiting dispatch with last message: {msg}")
+                self._log.info(f"Exiting dispatch with message: {msg}")
                 break
 
     async def _handle_event(self, event):
@@ -140,6 +133,8 @@ class Connection:
     async def _handle_connection(self, data):
         self.socket_id = data["socket_id"]
         self._activity_timeout = data["activity_timeout"]
+        # force to update heartbeat
+        self._ws._heartbeat = self._activity_timeout
         self.state = self.State.CONNECTED
         self._log.info(f"Connection established: {data}")
 
@@ -169,4 +164,4 @@ class Connection:
         return self.state == self.State.CONNECTED
 
     def _get_reconnect_wait(self, attempts):
-        return round(random() * min(MAX_RECONNECT_SECONDS, 2 ** (attempts - 1) - 1))
+        return round(random() * min(self._activity_timeout, 2 ** (attempts - 1) - 1))

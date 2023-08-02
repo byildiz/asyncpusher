@@ -27,7 +27,7 @@ class Pusher:
         user_data={},
         auto_sub=False,
         log: logging.Logger = None,
-        loop: asyncio.BaseEventLoop = None,
+        loop: asyncio.AbstractEventLoop = None,
         **kwargs,
     ):
         self._key = key
