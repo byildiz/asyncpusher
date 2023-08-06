@@ -36,7 +36,7 @@ class Connection:
 
         self._event_callbacks = defaultdict(dict)
 
-        self._num_reconnect = 0
+        self._connection_attempts = 0
         # stop signal to break infinite loop in _run_forever
         self._stop = False
         self._ws: aiohttp.ClientWebSocketResponse = None
@@ -63,22 +63,26 @@ class Connection:
     async def _run_forever(self):
         async with aiohttp.ClientSession() as session:
             while not self._stop:
-                await self._connect(session)
+                try:
+                    await self._connect(session)
+                except BaseException:
+                    self._log.exception("Exception while connecting to web socket")
+                    self._connection_attempts += 1
         self._log.info("End of forever")
 
     async def _connect(self, session: aiohttp.ClientSession):
         self._log.info("Pusher connecting...")
 
-        self._num_reconnect += 1
-        wait_seconds = self._get_reconnect_wait(self._num_reconnect)
-        self._log.info(f"Waiting for {wait_seconds}s")
+        wait_seconds = self._get_wait_time(self._connection_attempts)
+        self._log.info(
+            f"Waiting for {wait_seconds}s, # attemps: {self._connection_attempts}"
+        )
         await asyncio.sleep(wait_seconds)
-        self._log.info("End of wait")
 
         async with session.ws_connect(
             self._url, heartbeat=self._activity_timeout, **self._websocket_params
         ) as ws:
-            # internally ws uses heartbeat/2 as pong timeout but pusher protocol advise 30s
+            # internally aiohttp.ClientWebSocketResponse uses heartbeat/2 as pong timeout but pusher protocol advise 30s
             ws._pong_heartbeat = self._pong_timeout
             self._ws = ws
             await self._dispatch(ws)
@@ -91,16 +95,29 @@ class Connection:
                 event = json.loads(msg.data)
                 await self._handle_event(event)
             else:
+                self._state = self.State.CLOSED
+                self._log.info(f"Exiting dispatch with message: {msg}")
                 if msg.type == aiohttp.WSMsgType.CLOSE:
-                    # TODO: handle msg like WSMessage(type=<WSMsgType.CLOSE: 8>, data=4200, extra='Please reconnect immediately')
-                    # 4000-4099: The connection SHOULD NOT be re-established unchanged.
-                    # 4100-4199: The connection SHOULD be re-established after backing off. The back-off time SHOULD be at least 1 second in duration and MAY be exponential in nature on consecutive failures.
-                    # 4200-4299: The connection SHOULD be re-established immediately.
+                    if isinstance(msg.data, int):
+                        code = msg.data
+                        # 4000-4099: The connection SHOULD NOT be re-established unchanged.
+                        if code >= 4000 and code < 4100:
+                            self._stop = True
+                        # 4100-4199: The connection SHOULD be re-established after backing off.
+                        # The back-off time SHOULD be at least 1 second in duration and MAY be
+                        # exponential in nature on consecutive failures.
+                        elif code >= 4100 and code < 4200:
+                            self._connection_attempts += 1
+                        # 4200-4299: The connection SHOULD be re-established immediately.
+                        elif code >= 4200 and code < 4300:
+                            self._connection_attempts = 0
+                    else:
+                        # Unknown closing, it sometimes happens. Try to reconnect anyway
+                        self._connection_attempts = 0
                     await ws.close()
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     self._log.error(f"Error received {ws.exception()}")
-                self._state = self.State.CLOSED
-                self._log.info(f"Exiting dispatch with message: {msg}")
+                    self._connection_attempts = 0
                 break
 
     async def _handle_event(self, event):
@@ -153,5 +170,9 @@ class Connection:
     def is_connected(self):
         return self.state == self.State.CONNECTED
 
-    def _get_reconnect_wait(self, attempts):
-        return round(random() * min(self._activity_timeout, 2 ** (attempts - 1) - 1))
+    @staticmethod
+    def _get_wait_time(num_attempts):
+        if num_attempts <= 0:
+            return 0
+        # wait time should at least 1 seconds
+        return round(random() * (2 ** (num_attempts) - 1)) + 1
