@@ -4,12 +4,12 @@ import hmac
 import json
 import logging
 
-from aiopusher.channel import Channel
-from aiopusher.connection import Connection
+from asyncpusher.channel import Channel
+from asyncpusher.connection import Connection
 
 VERSION = "0.1.0"
 PROTOCOL = 7
-DEFAULT_CLIENT = "aiopusher"
+DEFAULT_CLIENT = "asyncpusher"
 
 
 class Pusher:

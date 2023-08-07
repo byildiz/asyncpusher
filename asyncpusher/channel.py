@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 from enum import Enum
 
-from aiopusher.connection import Connection
+from asyncpusher.connection import Connection
 
 
 class Channel:

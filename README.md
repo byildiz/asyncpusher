@@ -1,6 +1,6 @@
-# aiopusher
+# asyncpusher
 
-aiopusher is an asynchronous python client library for [Pusher](https://pusher.com/channels/)
+asyncpusher is an asynchronous python client library for [Pusher](https://pusher.com/channels/)
 
 ## Features
 
@@ -12,7 +12,7 @@ aiopusher is an asynchronous python client library for [Pusher](https://pusher.c
 ## Install
 
 ```
-$ python3 -m pip install aiopusher
+$ python3 -m pip install asyncpusher
 ```
 
 ## Usage
@@ -22,8 +22,8 @@ import asyncio
 import logging
 import sys
 
-from aiopusher.channel import Channel
-from aiopusher.pusher import Pusher
+from asyncpusher.channel import Channel
+from asyncpusher.pusher import Pusher
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 

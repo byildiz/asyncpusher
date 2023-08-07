@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "aiopusher"
+name = "asyncpusher"
 dynamic = ["version"]
 description = "An asynchronous Pusher client library"
 readme = "README.md"
@@ -29,12 +29,12 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/byildiz/aiopusher#readme"
-Issues = "https://github.com/byildiz/aiopusher/issues"
-Source = "https://github.com/byildiz/aiopusher"
+Documentation = "https://github.com/byildiz/asyncpusher#readme"
+Issues = "https://github.com/byildiz/asyncpusher/issues"
+Source = "https://github.com/byildiz/asyncpusher"
 
 [tool.hatch.version]
-path = "aiopusher/pusher.py"
+path = "asyncpusher/pusher.py"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -42,7 +42,7 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["aiopusher"]
+packages = ["asyncpusher"]
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -138,7 +138,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["aiopusher"]
+known-first-party = ["asyncpusher"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -148,6 +148,6 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["aiopusher", "tests"]
+source_pkgs = ["asyncpusher", "tests"]
 branch = true
 parallel = true
