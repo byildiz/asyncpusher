@@ -40,10 +40,10 @@ async def main():
     await pusher.connect()
     channel_name = "<CHANNEL_NAME>"
     channel = await pusher.subscribe(channel_name)
-    channel.bind("diff", handle_event, "usdt_tl")
+    channel.bind("diff", handle_event)
     await asyncio.sleep(5)
     await pusher.unsubscribe(channel_name)
-    await asyncio.sleep(5)
+    await asyncio.sleep(1)
     await pusher.disconnect()
 
 
