@@ -1,14 +1,13 @@
 import asyncio
-import logging
-import json
-import hmac
 import hashlib
+import hmac
+import json
+import logging
 
-from .connection import Connection
-from .channel import Channel
+from aiopusher.channel import Channel
+from aiopusher.connection import Connection
 
-
-VERSION = "0.1"
+VERSION = "0.1.0"
 PROTOCOL = 7
 DEFAULT_CLIENT = "aiopusher"
 
@@ -17,40 +16,35 @@ class Pusher:
     def __init__(
         self,
         key: str,
-        cluster: str = None,
+        cluster: str | None = None,
         secure=True,
-        custom_host: str = None,
-        custom_port: int = None,
-        custom_client: str = None,
-        secret: str = None,
+        custom_host: str | None = None,
+        custom_port: int | None = None,
+        custom_client: str | None = None,
+        secret: str | None = None,
         signer=None,
-        user_data={},
+        user_data=None,
         auto_sub=False,
-        log: logging.Logger = None,
-        loop: asyncio.AbstractEventLoop = None,
+        log: logging.Logger | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
         **kwargs,
     ):
         self._key = key
 
         self._secret = secret
         self._signer = signer
-        self._user_data = user_data
+        self._user_data = user_data if user_data is not None else {}
 
         self._log = log if log is not None else logging.getLogger(__name__)
         self._loop = loop if loop is not None else asyncio.get_running_loop()
 
         self.channels: dict[Channel] = {}
 
-        assert (
-            custom_host is None or cluster is None
-        ), "Could not provide both cluster and custom host"
+        if custom_host is not None and cluster is not None:
+            raise ValueError("Could not provide both cluster and custom host")
 
-        self._url = self._build_url(
-            custom_host, custom_client, custom_port, cluster, secure
-        )
-        self.connection = Connection(
-            self._loop, self._url, self._handle_event, self._log, **kwargs
-        )
+        self._url = self._build_url(custom_host, custom_client, custom_port, cluster, secure)
+        self.connection = Connection(self._loop, self._url, self._handle_event, self._log, **kwargs)
 
         if auto_sub:
             self.connection.bind("pusher:connection_established", self._resubscribe)
@@ -63,9 +57,7 @@ class Pusher:
 
     async def _handle_event(self, channel_name, event_name, data):
         if channel_name not in self.channels:
-            self._log.warning(
-                f"Unsubscribed event, channel: {channel_name}, event: {event_name}, data: {data}"
-            )
+            self._log.warning(f"Unsubscribed event, channel: {channel_name}, event: {event_name}, data: {data}")
             return
         await self.channels[channel_name].handle_event(event_name, data)
 
@@ -84,9 +76,7 @@ class Pusher:
         data = {"channel": channel_name}
         if auth is None:
             if channel_name.startswith("presence-"):
-                data["auth"] = await self._generate_auth_token(
-                    channel_name, is_presence=True
-                )
+                data["auth"] = await self._generate_auth_token(channel_name, is_presence=True)
                 data["channel_data"] = json.dumps(self.user_data)
             elif channel_name.startswith("private-"):
                 data["auth"] = await self._generate_auth_token(channel_name)
@@ -111,18 +101,15 @@ class Pusher:
                 await self._subscribe(channel.name, channel.auth)
 
     async def _generate_auth_token(self, channel_name: str, is_presence=False):
-        assert (
-            self._secret is not None or self._signer is not None
-        ), "One of them has to be provided"
+        if self._secret is None and self._signer is None:
+            raise ValueError("One of them has to be provided")
 
         if self._secret is not None:
             subject = f"{self.connection.socket_id}:{channel_name}"
             if is_presence:
                 subject = f"{subject}:{json.dumps(self._user_data)}"
-            hash = hmac.new(
-                self._as_bytes(self._secret), subject.encode(), hashlib.sha256
-            )
-            auth = f"{self._key}:{hash.hexdigest()}"
+            hasher = hmac.new(self._as_bytes(self._secret), subject.encode(), hashlib.sha256)
+            auth = f"{self._key}:{hasher.hexdigest()}"
         else:
             data = {
                 "socket_id": self.connection.socket_id,

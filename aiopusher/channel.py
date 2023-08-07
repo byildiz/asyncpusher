@@ -1,8 +1,8 @@
-from collections import defaultdict
 import logging
+from collections import defaultdict
 from enum import Enum
 
-from .connection import Connection
+from aiopusher.connection import Connection
 
 
 class Channel:
@@ -36,24 +36,20 @@ class Channel:
 
     async def handle_event(self, event_name, data):
         if event_name not in self._event_callbacks:
-            self._log.warning(
-                f"Unhandled event, channel: {self.name}, event: {event_name}, data: {data}"
-            )
+            self._log.warning(f"Unhandled event, channel: {self.name}, event: {event_name}, data: {data}")
             return
 
         for callback, (args, kwargs) in self._event_callbacks[event_name].items():
             try:
                 await callback(data, *args, **kwargs)
-            except:
+            except Exception:
                 self._log.exception(f"Exception in callback: {data}")
 
     async def trigger(self, event):
-        assert event["event"].startswith(
-            "client-"
-        ), "Client event has to start with client-"
-        assert (
-            self.is_private() or self.is_presence()
-        ), "Client event can only be sent on private or presence channels"
+        if not event["event"].startswith("client-"):
+            raise ValueError("Client event has to start with client-")
+        if not self.is_private() and not self.is_presence():
+            raise ValueError("Client event can only be sent on private or presence channels")
 
         event["channel"] = self.name
         await self._connection.send_event(event)

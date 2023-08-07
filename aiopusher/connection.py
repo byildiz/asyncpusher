@@ -1,12 +1,13 @@
-import logging
 import asyncio
 import json
-import aiohttp
-from random import random
+import logging
 from collections import defaultdict
-from collections.abc import Callable, Awaitable
-from typing import Any
+from collections.abc import Awaitable, Callable
 from enum import Enum
+from random import random
+from typing import Any
+
+import aiohttp
 
 
 class Connection:
@@ -74,14 +75,10 @@ class Connection:
         self._log.info("Pusher connecting...")
 
         wait_seconds = self._get_wait_time(self._connection_attempts)
-        self._log.info(
-            f"Waiting for {wait_seconds}s, # attemps: {self._connection_attempts}"
-        )
+        self._log.info(f"Waiting for {wait_seconds}s, # attemps: {self._connection_attempts}")
         await asyncio.sleep(wait_seconds)
 
-        async with session.ws_connect(
-            self._url, heartbeat=self._activity_timeout, **self._websocket_params
-        ) as ws:
+        async with session.ws_connect(self._url, heartbeat=self._activity_timeout, **self._websocket_params) as ws:
             # internally aiohttp.ClientWebSocketResponse uses heartbeat/2 as pong timeout but pusher protocol advise 30s
             ws._pong_heartbeat = self._pong_timeout
             self._ws = ws
@@ -136,7 +133,7 @@ class Connection:
             for callback, (args, kwargs) in self._event_callbacks[event_name].items():
                 try:
                     await callback(event_data, *args, **kwargs)
-                except:
+                except Exception:
                     self._log.exception(f"Exception in callback: {event_data}")
             return
 
