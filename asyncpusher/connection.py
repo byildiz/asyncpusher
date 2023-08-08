@@ -49,6 +49,7 @@ class Connection:
 
         self.bind("pusher:connection_established", self._handle_connection)
         self.bind("pusher:connection_failed", self._handle_failure)
+        self.bind("pusher:error", self._handle_error)
 
     async def open(self):
         self._loop.create_task(self._run_forever())
@@ -66,7 +67,7 @@ class Connection:
             while not self._stop:
                 try:
                     await self._connect(session)
-                except BaseException:
+                except aiohttp.ClientError:
                     self._log.exception("Exception while connecting to web socket")
                     self._connection_attempts += 1
         self._log.info("End of forever")
@@ -92,7 +93,7 @@ class Connection:
                 event = json.loads(msg.data)
                 await self._handle_event(event)
             else:
-                self._state = self.State.CLOSED
+                self.state = self.State.CLOSED
                 self._log.info(f"Exiting dispatch with message: {msg}")
                 if msg.type == aiohttp.WSMsgType.CLOSE:
                     if isinstance(msg.data, int):
@@ -123,7 +124,11 @@ class Connection:
             return
 
         event_name = event["event"]
-        event_data = json.loads(event.get("data", "{}"))
+        event_data = event.get("data")
+        try:
+            event_data = json.loads(event_data)
+        except TypeError:
+            pass
 
         if "channel" in event:
             await self._callback(event["channel"], event_name, event_data)
@@ -157,6 +162,9 @@ class Connection:
     async def _handle_failure(self, data):
         self.state = self.State.FAILED
         self._log.error(f"Connection failed: {data}")
+
+    async def _handle_error(self, data):
+        self._log.error(f"Pusher error: {data}")
 
     def bind(self, event_name, callback, *args, **kwargs):
         self._event_callbacks[event_name][callback] = (args, kwargs)

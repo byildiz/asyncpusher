@@ -13,13 +13,11 @@ class Channel:
 
     def __init__(
         self,
-        channel_name,
-        auth,
+        name,
         connection: Connection,
         log: logging.Logger,
     ):
-        self.name = channel_name
-        self.auth = auth
+        self._name = name
         self._connection = connection
         self._log = log
 
@@ -36,7 +34,7 @@ class Channel:
 
     async def handle_event(self, event_name, data):
         if event_name not in self._event_callbacks:
-            self._log.warning(f"Unhandled event, channel: {self.name}, event: {event_name}, data: {data}")
+            self._log.warning(f"Unhandled event, channel: {self._name}, event: {event_name}, data: {data}")
             return
 
         for callback, (args, kwargs) in self._event_callbacks[event_name].items():
@@ -48,17 +46,18 @@ class Channel:
     async def trigger(self, event):
         if not event["event"].startswith("client-"):
             raise ValueError("Client event has to start with client-")
+
         if not self.is_private() and not self.is_presence():
             raise ValueError("Client event can only be sent on private or presence channels")
 
-        event["channel"] = self.name
+        event["channel"] = self._name
         await self._connection.send_event(event)
 
     def is_private(self):
-        return self.name.startswith("private-")
+        return self._name.startswith("private-")
 
     def is_presence(self):
-        return self.name.startswith("presence-")
+        return self._name.startswith("presence-")
 
     async def _handle_success(self, _):
         self.state = self.State.SUBSCRIBED

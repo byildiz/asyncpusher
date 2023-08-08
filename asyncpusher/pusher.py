@@ -1,7 +1,4 @@
 import asyncio
-import hashlib
-import hmac
-import json
 import logging
 
 from asyncpusher.channel import Channel
@@ -21,9 +18,8 @@ class Pusher:
         custom_host: str | None = None,
         custom_port: int | None = None,
         custom_client: str | None = None,
-        secret: str | None = None,
-        signer=None,
-        user_data=None,
+        channel_authenticator=None,
+        user_authenticator=None,
         auto_sub=False,
         log: logging.Logger | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
@@ -31,9 +27,8 @@ class Pusher:
     ):
         self._key = key
 
-        self._secret = secret
-        self._signer = signer
-        self._user_data = user_data if user_data is not None else {}
+        self._channel_authenticator = channel_authenticator
+        self._user_authenticator = user_authenticator
 
         self._log = log if log is not None else logging.getLogger(__name__)
         self._loop = loop if loop is not None else asyncio.get_running_loop()
@@ -61,28 +56,24 @@ class Pusher:
             return
         await self.channels[channel_name].handle_event(event_name, data)
 
-    async def subscribe(self, channel_name, auth=None):
+    async def subscribe(self, channel_name):
         if channel_name in self.channels:
             return self.channels[channel_name]
 
-        await self._subscribe(channel_name, auth)
+        channel = Channel(channel_name, self.connection, self._log)
+        await self._subscribe(channel)
 
-        channel = Channel(channel_name, auth, self.connection, self._log)
         self.channels[channel_name] = channel
 
         return channel
 
-    async def _subscribe(self, channel_name, auth=None):
-        data = {"channel": channel_name}
-        if auth is None:
-            if channel_name.startswith("presence-"):
-                data["auth"] = await self._generate_auth_token(channel_name, is_presence=True)
-                data["channel_data"] = json.dumps(self.user_data)
-            elif channel_name.startswith("private-"):
-                data["auth"] = await self._generate_auth_token(channel_name)
-        else:
-            data["auth"] = auth
-
+    async def _subscribe(self, channel: Channel):
+        data = {"channel": channel._name}
+        if channel.is_private() or channel.is_presence():
+            auth = await self._authenticate_channel(channel)
+            data["auth"] = auth["auth"]
+            if channel.is_presence():
+                data["channel_data"] = auth["channel_data"]
         event = {"event": "pusher:subscribe", "data": data}
         await self.connection.send_event(event)
 
@@ -98,27 +89,17 @@ class Pusher:
         if len(self.channels) > 0:
             self._log.info("Resubscribing channels...")
             for channel in self.channels.values():
-                await self._subscribe(channel.name, channel.auth)
+                await self._subscribe(channel)
 
-    async def _generate_auth_token(self, channel_name: str, is_presence=False):
-        if self._secret is None and self._signer is None:
-            raise ValueError("One of them has to be provided")
+    async def _authenticate_channel(self, channel: Channel):
+        if self._channel_authenticator is None:
+            raise ValueError("channel_authenticator has to be provided")
 
-        if self._secret is not None:
-            subject = f"{self.connection.socket_id}:{channel_name}"
-            if is_presence:
-                subject = f"{subject}:{json.dumps(self._user_data)}"
-            hasher = hmac.new(self._as_bytes(self._secret), subject.encode(), hashlib.sha256)
-            auth = f"{self._key}:{hasher.hexdigest()}"
-        else:
-            data = {
-                "socket_id": self.connection.socket_id,
-                "channel_name": channel_name,
-            }
-            if is_presence:
-                data["user_data"] = self._user_data
-            auth = await self._signer(data)
-        return auth
+        data = {
+            "socket_id": self.connection.socket_id,
+            "channel_name": channel._name,
+        }
+        return await self._channel_authenticator(data)
 
     def _build_url(self, custom_host, custom_client, custom_port, cluster, secure):
         self._protocol = "wss" if secure else "ws"
