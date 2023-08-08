@@ -1,13 +1,14 @@
-# asyncpusher
-
 asyncpusher is an asynchronous python client library for [Pusher](https://pusher.com/channels/)
 
 ## Features
 
-- uses well-maintained [aiohttp](https://github.com/aio-libs/aiohttp)'s websocket library
-- auto handles reconnection
-- asynchronous
-- supports Pusher Channels [protocol 7](https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/)
+- Uses well-maintained [aiohttp](https://github.com/aio-libs/aiohttp)'s websocket library
+- Reliable connection
+- Auto handles reconnection
+- Asynchronous
+- Fast
+- Supports Pusher Channels [protocol 7](https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/)
+- Support presence and private channels
 
 ## Install
 
