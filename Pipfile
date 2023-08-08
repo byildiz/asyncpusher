@@ -10,6 +10,7 @@ aiohttp = "*"
 hatch = "*"
 ruff = "*"
 black = "*"
+pusher = "*"
 
 [requires]
 python_version = "3.11"
