@@ -76,7 +76,7 @@ class Connection:
         self._log.info("Pusher connecting...")
 
         wait_seconds = self._get_wait_time(self._connection_attempts)
-        self._log.info(f"Waiting for {wait_seconds}s, # attemps: {self._connection_attempts}")
+        self._log.info(f"Waiting for {wait_seconds}s, # attempts: {self._connection_attempts}")
         await asyncio.sleep(wait_seconds)
 
         async with session.ws_connect(self._url, heartbeat=self._activity_timeout, **self._websocket_params) as ws:

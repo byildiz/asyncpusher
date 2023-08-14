@@ -8,7 +8,7 @@ asyncpusher is an asynchronous python client library for [Pusher](https://pusher
 - Asynchronous
 - Fast
 - Supports Pusher Channels [protocol 7](https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/)
-- Support presence and private channels
+- Supports presence and private channels
 
 ## Install
 
