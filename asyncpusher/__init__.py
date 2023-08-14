@@ -1,5 +1,9 @@
-from .pusher import Pusher
-from .connection import Connection
-from .channel import Channel
+from asyncpusher.channel import Channel
+from asyncpusher.connection import Connection
+from asyncpusher.pusher import Pusher
 
-__all__ = ["Pusher", "Connection", "Channel"]
+__all__ = [
+    "Channel",
+    "Connection",
+    "Pusher",
+]
