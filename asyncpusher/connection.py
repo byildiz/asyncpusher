@@ -9,6 +9,8 @@ from typing import Any
 
 import aiohttp
 
+MAX_WAIT_SECONDS = 120
+
 
 class Connection:
     """
@@ -180,4 +182,5 @@ class Connection:
         if num_attempts <= 0:
             return 0
         # wait time should at least 1 seconds
-        return round(random() * (2 ** (num_attempts) - 1)) + 1
+        seconds = round(random() * (2 ** (num_attempts) - 1)) + 1
+        return min(seconds, MAX_WAIT_SECONDS)
