@@ -33,7 +33,7 @@ class Pusher:
         self._log = log if log is not None else logging.getLogger(__name__)
         self._loop = loop if loop is not None else asyncio.get_running_loop()
 
-        self.channels: dict[Channel] = {}
+        self.channels: dict[str, Channel] = {}
 
         if custom_host is not None and cluster is not None:
             raise ValueError("Could not provide both cluster and custom host")
