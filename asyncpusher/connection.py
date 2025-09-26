@@ -151,7 +151,8 @@ class Connection:
         while retry_count > 0 and self.state != self.State.CONNECTED:
             await asyncio.sleep(1)
             retry_count -= 1
-        await self._ws.send_json(event)
+        if self.state == self.State.CONNECTED:
+            await self._ws.send_json(event)
 
     async def _handle_connection(self, data):
         self.socket_id = data["socket_id"]
