@@ -114,7 +114,6 @@ class Connection:
                     else:
                         # Unknown closing, it sometimes happens. Try to reconnect anyway
                         self._connection_attempts = 0
-                    await ws.close()
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     self._log.error(f"Error received {ws.exception()}")
                     self._connection_attempts = 0
