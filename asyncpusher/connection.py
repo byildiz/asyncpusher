@@ -42,7 +42,7 @@ class Connection:
         self._connection_attempts = 0
         # stop signal to break infinite loop in _run_forever
         self._stop = False
-        self._ws: aiohttp.ClientWebSocketResponse = None
+        self._ws: aiohttp.ClientWebSocketResponse | None = None
         self.socket_id = None
         # https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/#recommendations-for-client-libraries
         self._activity_timeout = 120
@@ -62,7 +62,8 @@ class Connection:
     async def close(self):
         self._stop = True
         if self.state == self.State.CONNECTED:
-            await self._ws.close()
+            if self._ws is not None:
+                await self._ws.close()
 
     async def _run_forever(self):
         async with aiohttp.ClientSession() as session:
@@ -151,13 +152,15 @@ class Connection:
             await asyncio.sleep(1)
             retry_count -= 1
         if self.state == self.State.CONNECTED:
-            await self._ws.send_json(event)
+            if self._ws is not None:
+                await self._ws.send_json(event)
 
     async def _handle_connection(self, data):
         self.socket_id = data["socket_id"]
         self._activity_timeout = data["activity_timeout"]
         # force to update heartbeat
-        self._ws._heartbeat = self._activity_timeout
+        if self._ws is not None:
+            self._ws._heartbeat = self._activity_timeout
         self.state = self.State.CONNECTED
         self._log.info(f"Connection established: {data}")
 
