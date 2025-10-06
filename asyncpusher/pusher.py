@@ -41,6 +41,9 @@ class Pusher:
         self._url = self._build_url(custom_host, custom_client, custom_port, cluster, secure)
         self.connection = Connection(self._loop, self._url, self._handle_event, self._log, **kwargs)
 
+        self._connection_data = None
+        self.connection.bind("pusher:connection_established", self._handle_connection)
+
         if auto_sub:
             self.connection.bind("pusher:connection_established", self._resubscribe)
 
@@ -85,10 +88,18 @@ class Pusher:
 
             del self.channels[channel_name]
 
-    async def _resubscribe(self, _):
+    async def _handle_connection(self, data):
+        self._connection_data = data
+
+    async def _resubscribe(self, data):
+        # in case this method run before handle connection, update connection data also here
+        self._connection_data = data
         if len(self.channels) > 0:
             self._log.info("Resubscribing channels...")
             for channel in self.channels.values():
+                # another new connection is established, abort resubscription on old connection
+                if self._connection_data != data:
+                    break
                 await self._subscribe(channel)
 
     async def _authenticate_channel(self, channel: Channel):
