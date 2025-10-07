@@ -4,7 +4,7 @@ import logging
 from asyncpusher.channel import Channel
 from asyncpusher.connection import Connection
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 PROTOCOL = 7
 DEFAULT_CLIENT = "asyncpusher"
 
