@@ -97,10 +97,12 @@ class Pusher:
         if len(self.channels) > 0:
             self._log.info("Resubscribing channels...")
             for channel in self.channels.values():
-                # another new connection is established, abort resubscription on old connection
+                # if another new connection is established, abort resubscription on old connection
                 if self._connection_data != data:
+                    self._log.info(f"Aborting resubscribing from connection: {data}")
                     break
                 await self._subscribe(channel)
+        self._log.info("Resubscribing done.")
 
     async def _authenticate_channel(self, channel: Channel):
         if self._channel_authenticator is None:
