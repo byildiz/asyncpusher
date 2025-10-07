@@ -102,7 +102,7 @@ class Pusher:
                     self._log.info(f"Aborting resubscribing from connection: {data}")
                     break
                 await self._subscribe(channel)
-        self._log.info("Resubscribing done.")
+            self._log.info("Resubscribing done.")
 
     async def _authenticate_channel(self, channel: Channel):
         if self._channel_authenticator is None:
