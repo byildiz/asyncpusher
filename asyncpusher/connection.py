@@ -66,8 +66,8 @@ class Connection:
                 await self._ws.close()
 
     async def _run_forever(self):
-        async with aiohttp.ClientSession() as session:
-            while not self._stop:
+        while not self._stop:
+            async with aiohttp.ClientSession() as session:
                 try:
                     await self._connect(session)
                 except aiohttp.ClientError:
