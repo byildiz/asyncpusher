@@ -48,6 +48,11 @@ class Connection:
         self._activity_timeout = 120
         self._pong_timeout = 30
         self.state = self.State.IDLE
+        # Signals open() once the connection outcome is known: successful
+        # handshake, fatal failure, or _run_forever exiting without ever
+        # connecting. Prevents open() from hanging forever in those last
+        # two cases.
+        self._opened = asyncio.Event()
 
         self.bind("pusher:connection_established", self._handle_connection)
         self.bind("pusher:connection_failed", self._handle_failure)
@@ -56,8 +61,11 @@ class Connection:
     async def open(self):
         self._loop.create_task(self._run_forever())
 
-        while self.state != self.State.CONNECTED:
-            await asyncio.sleep(1)
+        await self._opened.wait()
+
+        if self.state != self.State.CONNECTED:
+            msg = f"Pusher connection could not be established (state={self.state.name})"
+            raise ConnectionError(msg)
 
     async def close(self):
         self._stop = True
@@ -66,14 +74,19 @@ class Connection:
                 await self._ws.close()
 
     async def _run_forever(self):
-        while not self._stop:
-            async with aiohttp.ClientSession() as session:
-                try:
-                    await self._connect(session)
-                except aiohttp.ClientError:
-                    self._log.exception("Exception while connecting to web socket")
-                    self._connection_attempts += 1
-        self._log.info("End of forever")
+        try:
+            while not self._stop:
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        await self._connect(session)
+                    except aiohttp.ClientError:
+                        self._log.exception("Exception while connecting to web socket")
+                        self._connection_attempts += 1
+            self._log.info("End of forever")
+        finally:
+            # Guarantee open() wakes up even if we exit before CONNECTED
+            # (fatal close code, unhandled exception, cancellation).
+            self._opened.set()
 
     async def _connect(self, session: aiohttp.ClientSession):
         self._log.info("Pusher connecting...")
@@ -162,10 +175,12 @@ class Connection:
         if self._ws is not None:
             self._ws._heartbeat = self._activity_timeout
         self.state = self.State.CONNECTED
+        self._opened.set()
         self._log.info(f"Connection established: {data}")
 
     async def _handle_failure(self, data):
         self.state = self.State.FAILED
+        self._opened.set()
         self._log.error(f"Connection failed: {data}")
 
     async def _handle_error(self, data):
