@@ -70,7 +70,12 @@ class Connection:
             async with aiohttp.ClientSession() as session:
                 try:
                     await self._connect(session)
-                except aiohttp.ClientError:
+                except Exception:
+                    # Catch everything except BaseException subclasses (notably
+                    # CancelledError). Anything narrower leaks non-ClientError
+                    # failures (asyncio.TimeoutError, OSError from aiodns,
+                    # malformed JSON, bugs in internal handlers, etc.) and kills
+                    # _run_forever silently, permanently disabling reconnect.
                     self._log.exception("Exception while connecting to web socket")
                     self._connection_attempts += 1
         self._log.info("End of forever")
@@ -162,6 +167,9 @@ class Connection:
         if self._ws is not None:
             self._ws._heartbeat = self._activity_timeout
         self.state = self.State.CONNECTED
+        # Reset so a future disconnect-then-reconnect starts its backoff from
+        # scratch instead of inheriting the pre-success attempt count.
+        self._connection_attempts = 0
         self._log.info(f"Connection established: {data}")
 
     async def _handle_failure(self, data):
