@@ -164,9 +164,13 @@ class Connection:
         while retry_count > 0 and self.state != self.State.CONNECTED:
             await asyncio.sleep(1)
             retry_count -= 1
-        if self.state == self.State.CONNECTED:
-            if self._ws is not None and not self._ws.closed:
-                await self._ws.send_json(event)
+        if self.state != self.State.CONNECTED:
+            msg = f"Cannot send event: connection not established (state={self.state.name})"
+            raise ConnectionError(msg)
+        if self._ws is None or self._ws.closed:
+            msg = "Cannot send event: websocket is not open"
+            raise ConnectionError(msg)
+        await self._ws.send_json(event)
 
     async def _handle_connection(self, data):
         self.socket_id = data["socket_id"]
