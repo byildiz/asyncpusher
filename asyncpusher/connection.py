@@ -48,6 +48,11 @@ class Connection:
         self._activity_timeout = 120
         self._pong_timeout = 30
         self.state = self.State.IDLE
+        # Signals open() once the connection outcome is known: successful
+        # handshake, fatal failure, or _run_forever exiting without ever
+        # connecting. Prevents open() from hanging forever in those last
+        # two cases.
+        self._opened = asyncio.Event()
 
         self.bind("pusher:connection_established", self._handle_connection)
         self.bind("pusher:connection_failed", self._handle_failure)
@@ -56,8 +61,11 @@ class Connection:
     async def open(self):
         self._loop.create_task(self._run_forever())
 
-        while self.state != self.State.CONNECTED:
-            await asyncio.sleep(1)
+        await self._opened.wait()
+
+        if self.state != self.State.CONNECTED:
+            msg = f"Pusher connection could not be established (state={self.state.name})"
+            raise ConnectionError(msg)
 
     async def close(self):
         self._stop = True
@@ -66,19 +74,24 @@ class Connection:
                 await self._ws.close()
 
     async def _run_forever(self):
-        while not self._stop:
-            async with aiohttp.ClientSession() as session:
-                try:
-                    await self._connect(session)
-                except Exception:
-                    # Catch everything except BaseException subclasses (notably
-                    # CancelledError). Anything narrower leaks non-ClientError
-                    # failures (asyncio.TimeoutError, OSError from aiodns,
-                    # malformed JSON, bugs in internal handlers, etc.) and kills
-                    # _run_forever silently, permanently disabling reconnect.
-                    self._log.exception("Exception while connecting to web socket")
-                    self._connection_attempts += 1
-        self._log.info("End of forever")
+        try:
+            while not self._stop:
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        await self._connect(session)
+                    except Exception:
+                        # Catch everything except BaseException subclasses (notably
+                        # CancelledError). Anything narrower leaks non-ClientError
+                        # failures (asyncio.TimeoutError, OSError from aiodns,
+                        # malformed JSON, bugs in internal handlers, etc.) and kills
+                        # _run_forever silently, permanently disabling reconnect.
+                        self._log.exception("Exception while connecting to web socket")
+                        self._connection_attempts += 1
+            self._log.info("End of forever")
+        finally:
+            # Guarantee open() wakes up even if we exit before CONNECTED
+            # (fatal close code, unhandled exception, cancellation).
+            self._opened.set()
 
     async def _connect(self, session: aiohttp.ClientSession):
         self._log.info("Pusher connecting...")
@@ -156,9 +169,13 @@ class Connection:
         while retry_count > 0 and self.state != self.State.CONNECTED:
             await asyncio.sleep(1)
             retry_count -= 1
-        if self.state == self.State.CONNECTED:
-            if self._ws is not None and not self._ws.closed:
-                await self._ws.send_json(event)
+        if self.state != self.State.CONNECTED:
+            msg = f"Cannot send event: connection not established (state={self.state.name})"
+            raise ConnectionError(msg)
+        if self._ws is None or self._ws.closed:
+            msg = "Cannot send event: websocket is not open"
+            raise ConnectionError(msg)
+        await self._ws.send_json(event)
 
     async def _handle_connection(self, data):
         self.socket_id = data["socket_id"]
@@ -170,10 +187,12 @@ class Connection:
         # Reset so a future disconnect-then-reconnect starts its backoff from
         # scratch instead of inheriting the pre-success attempt count.
         self._connection_attempts = 0
+        self._opened.set()
         self._log.info(f"Connection established: {data}")
 
     async def _handle_failure(self, data):
         self.state = self.State.FAILED
+        self._opened.set()
         self._log.error(f"Connection failed: {data}")
 
     async def _handle_error(self, data):
